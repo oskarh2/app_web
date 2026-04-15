@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+
+{% block title %}Cuentas - Gestor Consultas{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="mb-0">👥 Lista de Cuentas</h2>
+    </div>
+    <div class="card-body">
+        <p class="text-muted">Aquí se mostrarán las cuentas registradas.</p>
+        
+        <!-- Example: Show user info if logged in -->
+        {% if user.is_authenticated %}
+            <div class="alert alert-info">
+                👋 Bienvenido, <strong>{{ user.username }}</strong>
+            </div>
+        {% endif %}
+        
+        <!-- TODO: Add your actual list/table here -->
+        <table class="table table-striped mt-3">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Nombre</th>
+                    <th>Email</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td colspan="4" class="text-center">Sin datos aún</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

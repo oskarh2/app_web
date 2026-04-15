@@ -1,0 +1,113 @@
+$ python -m django --version
+
+django-admin startproject mysite djangotutorial
+
+Let’s look at what startproject created:
+
+djangotutorial/
+    manage.py
+    mysite/
+        __init__.py
+        settings.py
+        urls.py
+        asgi.py
+        wsgi.py
+
+
+$ python manage.py runserver
+
+http://127.0.0.1:8000/ 
+
+
+ 
+$ python manage.py startapp polls
+
+$ python manage.py migrate
+
+DJANGO  GESTOR DE CONSULTAS APPLCIATION
+================================================
+
+
+# 2. Create the User (Optional but recommended)
+CREATE USER app_user WITH PASSWORD 'secure_password_here';
+CREATE USER app_user WITH PASSWORD 'DeMaNi1319!';
+# 3. Create the Database
+CREATE DATABASE gestor_consultas OWNER app_user;
+
+# 4. Grant Permissions
+GRANT ALL PRIVILEGES ON DATABASE gestor_consultas TO app_user;
+# 5. Exit and Connect to run the schema
+\q
+# 6 . create the tables in the DATABASE base on SCHEMA
+
+#psql -U app_user -d gestor_consultas -f db_schema.sql
+
+# 1. Asegúrate que la DB existe
+createdb gestor_consultas -U postgres
+
+# 2. Configura tu .env con los datos correctos
+cat > .env <<EOF
+DB_NAME=gestor_consultas
+DB_USER=postgres
+DB_HOST=localhost
+DB_PORT=5432
+SECRET_KEY=8)1rz3--2!$slk7j0i0&kn-2y&!hs&s^k7@-7&5-8(0d*c0v4q
+DEBUG=True
+EOF
+# 3. Ejecuta las migraciones (esto crea las tablas correctamente)
+python manage.py makemigrations
+python manage.py migrate
+
+# 4. Crea superusuario
+python manage.py createsuperuser
+
+# 5. Verifica tablas creadas
+psql -U app_user -d gestor_consultas -c "\dt"
+
+================================================================
+# 1. Limpiar DB anterior si existe (¡CUIDADO! Solo en desarrollo)
+dropdb gestor_consultas -U postgres || true
+
+# 2. Crear DB limpia
+createdb gestor_consultas -U postgres
+
+# 3. Conectar y ejecutar script
+psql -U postgres -d gestor_consultas -f db_schema_fixed.sql
+
+# 4. Verificar tablas creadas
+psql -U postgres -d gestor_consultas -c "\dt"
+
+# 5. Ejecutar Django migrations adicionales
+python manage.py makemigrations
+python manage.py migrate
+
+=================================================================
+
+✅ Paso 1: Ejecutar Comandos de Creación
+Abre tu terminal en la carpeta raíz del proyecto (app_web) y ejecuta estos comandos en secuencia:
+
+# 1. Crear app de usuarios y autenticación
+python manage.py startapp cuentas
+
+# 2. Crear app de empresas y ventas
+python manage.py startapp empresas
+
+# 3. Crear app de page_tracking y scraping
+python manage.py startapp scrapying
+
+# 4. Crear app principal de consultas y archivos
+python manage.py startapp consultas
+
+Paso 6: Aplicar Migraciones
+Finalmente, genera y aplica las migraciones para crear las tablas correspondientes en PostgreSQL.
+# Generar cambios en los modelos
+python manage.py makemigrations
+
+# Aplicar cambios a la base de datos
+python manage.py migrate
+
+# Crear usuario administrador para acceder al panel
+python manage.py createsuperuser
+
+python manage.py showmigrations
+

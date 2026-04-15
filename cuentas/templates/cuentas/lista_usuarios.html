@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}Lista de Usuarios{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h3 class="mb-0">Lista de Usuarios</h3>
+            {% if user.role == 'admin' or user.is_superuser %}
+                <a href="{% url 'cuentas:registro' %}" class="btn btn-light btn-sm">
+                    <i class="bi bi-person-plus-fill"></i> Nuevo Usuario
+                </a>
+            {% endif %}
+        </div>
+        <div class="card-body">
+            <!-- Filtros y búsqueda - Solo visible para admins -->
+            {% if user.role == 'admin' or user.is_superuser %}
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <form method="get" class="d-flex">
+                        <input type="text" name="search" class="form-control me-2" 
+                               placeholder="Buscar..." value="{{ search }}">
+                        <select name="role" class="form-select me-2" style="width: auto;">
+                            <option value="">Todos los roles</option>
+                            {% for role_value, role_label in roles %}
+                                <option value="{{ role_value }}" {% if role_filter == role_value %}selected{% endif %}>
+                                    {{ role_label }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-primary">Filtrar</button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Tabla de usuarios -->
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Email</th>
+                            <th>Nombre</th>
+                            <th>Rol</th>
+                            <th>Empresa</th>
+                            <th>Estado</th>
+                            {% if user.role == 'admin' or user.is_superuser %}
+                                <th>Acciones</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for usuario in page_obj %}
+                        <tr>
+                            <td>{{ usuario.perfil_id }}</td>
+                            <td>{{ usuario.email }}</td>
+                            <td>{{ usuario.get_full_name }}</td>
+                            <td>
+                                {% if usuario.role == 'admin' %}
+                                    <span class="badge bg-danger">Administrador</span>
+                                {% elif usuario.role == 'user' %}
+                                    <span class="badge bg-primary">Usuario</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Visitante</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ usuario.empresa|default:"-" }}</td>
+                            <td>
+                                {% if usuario.is_active %}
+                                    <span class="badge bg-success">Activo</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Inactivo</span>
+                                {% endif %}
+                            </td>
+                            {% if user.role == 'admin' or user.is_superuser %}
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'cuentas:editar_usuario' usuario.perfil_id %}" 
+                                           class="btn btn-warning">Editar</a>
+                                        {% if usuario.perfil_id != user.perfil_id %}
+                                            <button type="button" 
+                                                    class="btn btn-info" 
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#modalEstado{{ usuario.perfil_id }}">
+                                                {% if usuario.is_active %}Desactivar{% else %}Activar{% endif %}
+                                            </button>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <!-- Modal para cambiar estado -->
+                                    <div class="modal fade" id="modalEstado{{ usuario.perfil_id }}" tabindex="-1">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title">Confirmar</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    ¿Estás seguro de que deseas 
+                                                    {% if usuario.is_active %}desactivar{% else %}activar{% endif %} 
+                                                    al usuario {{ usuario.email }}?
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                                    <form method="post" action="{% url 'cuentas:cambiar_estado' usuario.perfil_id %}">
+                                                        {% csrf_token %}
+                                                        <button type="submit" class="btn btn-primary">Confirmar</button>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            {% endif %}
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="{% if user.role == 'admin' %}7{% else %}6{% endif %}" class="text-center">
+                                No hay usuarios registrados
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Paginación -->
+            {% if page_obj.has_other_pages %}
+            <nav>
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1{% if search %}&search={{ search }}{% endif %}">Primera</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}">Anterior</a>
+                        </li>
+                    {% endif %}
+                    
+                    <li class="page-item active">
+                        <span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+                    </li>
+                    
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}">Siguiente</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}">Última</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

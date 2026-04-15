@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow">
+        <div class="card-header bg-info text-white">
+            <h4 class="mb-0">
+                <i class="bi bi-file-text"></i> {{ validacion.nombre_archivo }}
+            </h4>
+        </div>
+        <div class="card-body">
+            <!-- Resumen -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card bg-light">
+                        <div class="card-body text-center">
+                            <h5>Total Registros</h5>
+                            <h3 class="text-primary">{{ validacion.total_registros }}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-light">
+                        <div class="card-body text-center">
+                            <h5>Exitosos</h5>
+                            <h3 class="text-success">{{ validacion.registros_exitosos }}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-light">
+                        <div class="card-body text-center">
+                            <h5>Fallidos</h5>
+                            <h3 class="text-danger">{{ validacion.registros_fallidos }}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-light">
+                        <div class="card-body text-center">
+                            <h5>Fecha</h5>
+                            <p class="mb-0">{{ validacion.fecha_procesamiento|date:"d/m/Y H:i" }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tabla de registros -->
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Tipo Doc.</th>
+                            <th>N° Documento</th>
+                            <th>Ciudad</th>
+                            <th>Estado</th>
+                            <th>Mensaje</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for registro in page_obj %}
+                        <tr>
+                            <td>{{ registro.nombre }} {{ registro.apellido }}</td>
+                            <td>{{ registro.get_tipo_documento_display }}</td>
+                            <td>{{ registro.numero_documento }}</td>
+                            <td>{{ registro.ciudad }}</td>
+                            <td>
+                                {% if registro.estado == 'exitoso' %}
+                                    <span class="badge bg-success">Exitoso</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Fallido</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ registro.mensaje_respuesta|truncatechars:50 }}</td>
+                            <td>
+                                <a href="{% url 'consultas:detalle_registro' registro.id %}" 
+                                   class="btn btn-sm btn-outline-info">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center">No hay registros</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Paginación -->
+            {% if page_obj.has_other_pages %}
+            <nav>
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1">Primera</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a>
+                        </li>
+                    {% endif %}
+                    
+                    <li class="page-item active">
+                        <span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+                    </li>
+                    
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">Siguiente</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Última</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+            
+            <div class="mt-3">
+                <a href="{% url 'consultas:validador_index' %}" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> Volver
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

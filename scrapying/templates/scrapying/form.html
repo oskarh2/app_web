@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white py-3">
+                <h4 class="mb-0 fw-bold">
+                    <i class="bi bi-bar-chart-steps me-2"></i>{{ titulo }}
+                </h4>
+            </div>
+            <div class="card-body p-4">
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    
+                    {% if form.errors %}
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Por favor corrige los errores marcados abajo.
+                    </div>
+                    {% endif %}
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">{{ form.page.label }}</label>
+                            {{ form.page }}
+                            {% if form.page.errors %}<div class="text-danger small mt-1">{{ form.page.errors.0 }}</div>{% endif %}
+                            <small class="text-muted small">Máximo 20 caracteres</small>
+                        </div>
+
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label fw-semibold">{{ form.type.label }}</label>
+                            {{ form.type }}
+                            {% if form.type.errors %}<div class="text-danger small mt-1">{{ form.type.errors.0 }}</div>{% endif %}
+                        </div>
+
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label fw-semibold">{{ form.kind.label }}</label>
+                            {{ form.kind }}
+                            {% if form.kind.errors %}<div class="text-danger small mt-1">{{ form.kind.errors.0 }}</div>{% endif %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">{{ form.steps.label }}</label>
+                        {{ form.steps }}
+                        {% if form.steps.errors %}<div class="text-danger small mt-1">{{ form.steps.errors.0 }}</div>{% endif %}
+                        <small class="text-muted small">Formato JSON: {"step1": "value", "step2": "value"}</small>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">{{ form.status.label }}</label>
+                            {{ form.status }}
+                            {% if form.status.errors %}<div class="text-danger small mt-1">{{ form.status.errors.0 }}</div>{% endif %}
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">{{ form.user_id.label }}</label>
+                            {{ form.user_id }}
+                            {% if form.user_id.errors %}<div class="text-danger small mt-1">{{ form.user_id.errors.0 }}</div>{% endif %}
+                            <small class="text-muted small">ID del usuario (perfil_id)</small>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">{{ form.metadata.label }}</label>
+                        {{ form.metadata }}
+                        {% if form.metadata.errors %}<div class="text-danger small mt-1">{{ form.metadata.errors.0 }}</div>{% endif %}
+                        <small class="text-muted small">Formato JSON: {"key": "value"}</small>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success px-4">
+                            <i class="bi bi-check-circle me-1"></i>Guardar
+                        </button>
+                        <a href="{% url 'scrapying:lista' %}" class="btn btn-outline-secondary px-4">
+                            <i class="bi bi-x-circle me-1"></i>Cancelar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

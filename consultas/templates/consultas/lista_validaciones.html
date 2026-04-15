@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+{% block title %}Mis Validaciones{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow">
+        <div class="card-header bg-info text-white">
+            <h4 class="mb-0">
+                <i class="bi bi-list-check"></i> Mis Validaciones
+            </h4>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Archivo</th>
+                            <th>Fecha</th>
+                            <th>Total</th>
+                            <th>Exitosos</th>
+                            <th>Fallidos</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for validacion in page_obj %}
+                        <tr>
+                            <td>{{ validacion.nombre_archivo|truncatechars:40 }}</td>
+                            <td>{{ validacion.fecha_procesamiento|date:"d/m/Y H:i:s" }}</td>
+                            <td>{{ validacion.total_registros }}</td>
+                            <td><span class="text-success">{{ validacion.registros_exitosos }}</span></td>
+                            <td><span class="text-danger">{{ validacion.registros_fallidos }}</span></td>
+                            <td>
+                                <a href="{% url 'consultas:detalle_validacion' validacion.id %}" 
+                                   class="btn btn-sm btn-info">
+                                    <i class="bi bi-eye"></i> Ver
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center py-4">
+                                <i class="bi bi-inbox fs-1"></i>
+                                <p class="mt-2">No tienes validaciones realizadas</p>
+                                <a href="{% url 'consultas:validador_index' %}" class="btn btn-primary btn-sm">
+                                    Ir al Validador
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Paginación -->
+            {% if page_obj.has_other_pages %}
+            <nav>
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1">Primera</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a>
+                        </li>
+                    {% endif %}
+                    
+                    <li class="page-item active">
+                        <span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+                    </li>
+                    
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">Siguiente</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Última</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

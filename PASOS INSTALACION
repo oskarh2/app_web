@@ -1,0 +1,10 @@
+PASOS INSTALACION
+
+🛠️ Pasos de Implementación
+pip install django
+django-admin startproject gestor_consultas .
+Crear apps individuales con python manage.py startapp <nombre_app>
+Agregar apps a INSTALLED_APPS
+Ejecutar migraciones: python manage.py makemigrations && python manage.py migrate
+Crear superusuario: python manage.py createsuperuser
+Desplegar: Configurar servidor (Gunicorn/Nginx).

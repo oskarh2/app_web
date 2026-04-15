@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block title %}Empresas - Gestor Consultas{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold">🏢 Gestión de Empresas</h2>
+    <a href="{% url 'empresas:crear' %}" class="btn btn-primary">
+        <i class="bi bi-plus-circle me-1"></i>Nueva Empresa
+    </a>
+</div>
+
+{% if items %}
+<div class="card shadow-sm border-0">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-4">Empresa</th>
+                    <th>Codigo</th>
+                    <th>Nombre</th>
+                    <th>Dirección</th>
+                    <th>Nit</th>
+                    <th>Pais</th>
+                    <th>Status</th>
+                    <th class="text-end pe-4">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in items %}
+                <tr>
+                    <td class="ps-4 fw-semibold">{{ e.nombre }}</td>
+                    <td><code class="bg-light px-2 py-1 rounded">{{ e.nit }}</code></td>
+                    <td>{{ e.pais|default:"—" }}</td>
+                    <td>
+                        {% if e.activo %}
+                            <span class="badge bg-success-subtle text-success px-2 py-2">✅ Activa</span>
+                        {% else %}
+                            <span class="badge bg-secondary-subtle text-secondary px-2 py-2">⛔ Inactiva</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-muted small">{{ e.created_at|date:"d M Y" }}</td>
+                    <td class="text-end pe-4">
+                        <div class="btn-group btn-group-sm">
+                            <a href="{% url 'empresas:editar' e.codigo %}" class="btn btn-outline-warning" title="Editar">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <a href="{% url 'empresas:eliminar' e.codigo %}" class="btn btn-outline-danger" title="Eliminar">
+                                <i class="bi bi-trash"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-info text-center py-4">
+    <i class="bi bi-building fs-4 d-block mb-2"></i>
+    <strong>No hay empresas registradas.</strong><br>
+    <a href="{% url 'empresas:crear' %}" class="btn btn-sm btn-primary mt-2">Registrar la primera</a>
+</div>
+{% endif %}
+{% endblock %}
+
+
