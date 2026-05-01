@@ -23,7 +23,7 @@ def lista(request):
     page_filter = request.GET.get('page', '')
     
     # Base queryset
-    queryset = PageTracking.objects.all()
+    queryset = PageTracking.objects.all().defer('steps')
     
     # Apply filters
     if search:
@@ -43,6 +43,19 @@ def lista(request):
     paginator = Paginator(queryset, 20)  # 20 records per page
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
+
+    # REPLACEMENT FOR YOUR SAFETY LOOP:
+    # We must handle the data before the template touches it
+    #for tracking in page_obj:
+    #    # If it's already a dict, Django's internal logic might still 
+        # trigger the error during serialization. 
+        # Ensure 'steps' is handled as a standard object.
+    #    if isinstance(tracking.steps, str):
+    #        try:
+    #            tracking.steps = json.loads(tracking.steps)
+    #        except (json.JSONDecodeError, TypeError):
+    #            pass
+
     
     # Get unique pages for filter dropdown
     pages = PageTracking.objects.values_list('page', flat=True).distinct()
@@ -53,7 +66,7 @@ def lista(request):
         'status_filter': status_filter,
         'page_filter': page_filter,
         'pages': pages,
-        'status_choices': PageTracking.Status.choices,
+        'pages': PageTracking.objects.values_list('page', flat=True).distinct(),
         'titulo': 'Lista de Page Tracking',
     }
     return render(request, 'scrapying/lista.html', context)

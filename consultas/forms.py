@@ -13,40 +13,39 @@ class ArchivoCSVForm(forms.Form):
         })
     )
 
+# consultas/forms.py
+
+
 class DatosManualForm(forms.Form):
-    """Formulario para ingreso manual de datos"""
-    nombre = forms.CharField(
+    """Formulario para ingreso manual de datos ajustado para el Agente Dual"""
+    NAME = forms.CharField(
         max_length=100,
-        label='Nombre',
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: NESTOR GREGORIO'})
+        label='Nombres',
+        widget=forms.TextInput(attrs={'class': 'form-control text-uppercase', 'placeholder': 'Ej: NESTOR GREGORIO'})
     )
-    apellido = forms.CharField(
+    LASTNAME = forms.CharField(
         max_length=100,
-        label='Apellido',
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: VERA FERNANDEZ'})
+        label='Apellidos',
+        widget=forms.TextInput(attrs={'class': 'form-control text-uppercase', 'placeholder': 'Ej: VERA FERNANDEZ'})
     )
     tipo_documento = forms.ChoiceField(
-        choices=[
-            ('CC', 'Cédula de Ciudadanía (CC)'),
-            ('CE', 'Cédula de Extranjería (CE)'),
-            ('TI', 'Tarjeta de Identidad (TI)'),
-            ('PA', 'Pasaporte (PA)'),
-        ],
+        choices=[('CC', 'Cédula de Ciudadanía'), ('CE', 'Cédula de Extranjería'), ('PA', 'Pasaporte')],
         label='Tipo de Documento',
         widget=forms.Select(attrs={'class': 'form-select'})
     )
-    numero_documento = forms.CharField(
+    ID = forms.CharField(
         max_length=20,
         label='Número de Documento',
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: 80167962'})
     )
-    fecha_expedicion = forms.DateField(
+    FECHA_EXP = forms.DateField(
         required=False,
         label='Fecha de Expedición',
         widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'})
     )
     ciudad = forms.CharField(
         max_length=100,
+        required=False,
         label='Ciudad',
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: BOGOTA'})
     )

@@ -1,6 +1,9 @@
 # consultas/views.py (agrega al final)
 import csv
 import io
+import os
+import sys
+from django.conf import settings
 from datetime import datetime
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
@@ -9,6 +12,22 @@ from django.core.paginator import Paginator
 from .models import ValidacionArchivo, RegistroValidacion
 from .forms import ArchivoCSVForm, DatosManualForm
 from .services import WebServiceCliente
+
+
+
+# 2. Aseguramos que 'utils' sea lo primero que Python revise
+utils_path = os.path.join(settings.BASE_DIR, 'utils')
+if utils_path not in sys.path:
+    sys.path.insert(0, utils_path) # Usamos insert(0) para darle máxima prioridad
+
+# 3. Importamos usando el espacio de nombres de la carpeta
+# Importaciones con los nombres corregidos
+# 2. Importaciones corregidas (SIN etiquetas de texto como)
+import database
+import scraping_config as config_scraping
+from main import process_person, set_service_url
+
+
 
 @login_required
 def validador_index(request):
@@ -141,61 +160,64 @@ def cargar_archivo(request):
 
 @login_required
 def ingresar_manual(request):
-    """Vista para ingreso manual de datos"""
     if request.method == 'POST':
         form = DatosManualForm(request.POST)
         if form.is_valid():
-            # Crear validación temporal
+            # 1. Crear el registro maestro de la validación
             validacion = ValidacionArchivo.objects.create(
                 usuario=request.user,
                 nombre_archivo=f"Manual_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             )
-            
-            # Preparar datos para web service
-            datos_ws = {
-                'nombre': form.cleaned_data['nombre'],
-                'apellido': form.cleaned_data['apellido'],
-                'tipo_documento': form.cleaned_data['tipo_documento'],
-                'numero_documento': form.cleaned_data['numero_documento'],
-                'ciudad': form.cleaned_data['ciudad'],
+
+            # 2. Configurar entorno del scraping[cite: 5]
+            config_scraping.set_headless_mode(True)
+            set_service_url("http://localhost:5001")
+
+            # 3. Cargar flujos de la base de datos
+            tipo_doc = form.cleaned_data['tipo_documento']
+            all_flows = database.load_flows_from_db(doc_type=tipo_doc)
+
+            # 4. Preparar datos con llaves exactas para el Web Service[cite: 2]
+            # Usamos guion medio en FECHA-EXP porque así lo requiere el agente
+            fecha_val = form.cleaned_data.get('FECHA_EXP')
+            person_data = {
+                'NAME': form.cleaned_data['NAME'].upper().strip(),
+                'LASTNAME': form.cleaned_data['LASTNAME'].upper().strip(),
+                'ID': form.cleaned_data['ID'].strip(),
+                'FECHA-EXP': fecha_val.strftime('%Y-%m-%d') if fecha_val else "",
+                'TIPO': tipo_doc,
+                'CITY': form.cleaned_data.get('ciudad', 'BOGOTA').upper()
             }
-            
-            if form.cleaned_data.get('fecha_expedicion'):
-                datos_ws['fecha_expedicion'] = form.cleaned_data['fecha_expedicion'].strftime('%Y-%m-%d')
-            
-            # Llamar al web service
-            resultado = WebServiceCliente.validar_persona(datos_ws)
-            
-            # Guardar registro
-            registro = RegistroValidacion.objects.create(
+
+            # 5. Ejecutar proceso (Esto envía la lista 'persons' al Web Service)
+            resultado_api = process_person(person_data, all_flows)
+
+            # 6. Guardar el registro individual (Corrección del KeyError)[cite: 5]
+            estado = 'exitoso' if resultado_api else 'fallido'
+            RegistroValidacion.objects.create(
                 validacion=validacion,
-                nombre=form.cleaned_data['nombre'],
-                apellido=form.cleaned_data['apellido'],
-                tipo_documento=form.cleaned_data['tipo_documento'],
-                numero_documento=form.cleaned_data['numero_documento'],
-                ciudad=form.cleaned_data['ciudad'],
-                fecha_expedicion=form.cleaned_data.get('fecha_expedicion'),
-                estado='exitoso' if resultado['exitoso'] else 'fallido',
-                mensaje_respuesta=resultado['mensaje'],
-                respuesta_json=resultado['datos_respuesta']
+                nombre=person_data['NAME'],
+                apellido=person_data['LASTNAME'],
+                tipo_documento=person_data['TIPO'],
+                numero_documento=person_data['ID'], # Usamos la llave 'ID' del diccionario
+                ciudad=person_data['CITY'],
+                estado=estado,
+                mensaje_respuesta="Consulta procesada" if resultado_api else "Error en Web Service",
+                respuesta_json=resultado_api
             )
-            
-            # Actualizar estadísticas
+
+            # Actualizar contadores generales
             validacion.total_registros = 1
-            validacion.registros_exitosos = 1 if resultado['exitoso'] else 0
-            validacion.registros_fallidos = 0 if resultado['exitoso'] else 1
+            validacion.registros_exitosos = 1 if resultado_api else 0
+            validacion.registros_fallidos = 0 if resultado_api else 1
             validacion.save()
-            
-            if resultado['exitoso']:
-                messages.success(request, '✅ Validación exitosa')
-            else:
-                messages.warning(request, f'⚠️ {resultado["mensaje"]}')
-            
-            return redirect('consultas:detalle_registro', registro.id)
+
+            return redirect('consultas:detalle_validacion', validacion_id=validacion.id)
     else:
         form = DatosManualForm()
-    
-    return render(request, 'consultas/ingresar_manual.html', {'form': form})
+
+    return render(request, 'consultas/ingresar_manual_2.html', {'form': form})
+
 
 @login_required
 def lista_validaciones(request):

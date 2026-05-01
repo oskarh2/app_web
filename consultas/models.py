@@ -6,7 +6,12 @@ User = get_user_model()
 
 class ValidacionArchivo(models.Model):
     """Modelo para almacenar información de archivos procesados"""
-    usuario = models.ForeignKey(User, on_delete=models.CASCADE, related_name='validaciones_archivos')
+    usuario = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        related_name='validaciones_archivos',
+        db_column='usuario_id' # <--- ESTO ES CLAVE
+    )
     nombre_archivo = models.CharField(max_length=255)
     fecha_procesamiento = models.DateTimeField(auto_now_add=True)
     total_registros = models.IntegerField(default=0)
