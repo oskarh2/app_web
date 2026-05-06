@@ -16,6 +16,7 @@ urlpatterns = [
     path('validador/lista-validaciones/', views.lista_validaciones, name='lista_validaciones'),
     path('validador/validacion/<int:validacion_id>/', views.detalle_validacion, name='detalle_validacion'),
     path('validador/registro/<int:registro_id>/', views.detalle_registro, name='detalle_registro'),
+    path('descargar-reporte/<path:file_path>/', views.descargar_reporte_protegido, name='descargar_reporte'),
     
     # Vistas de recuperación de contraseña
     path('password-reset/', 

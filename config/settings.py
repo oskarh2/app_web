@@ -170,3 +170,12 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
 # Configuración del Web Service de Validación
 VALIDACION_WS_URL = 'http://tu-web-service.com/api/validar' 
+
+# Configuración de Celery
+#CELERY_TASK_ALWAYS_EAGER = True
+#CELERY_TASK_EAGER_PROPAGATES = True
+
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+# Estas líneas ayudan a evitar conflictos de conexión
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True

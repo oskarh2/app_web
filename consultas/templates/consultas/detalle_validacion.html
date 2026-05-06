@@ -70,6 +70,13 @@
                             <td>
                                 {% if registro.estado == 'exitoso' %}
                                     <span class="badge bg-success">Exitoso</span>
+                                    <a href="{% url 'consultas:descargar_reporte' registro.relative_pdf_path %}" 
+                                       class="btn btn-sm btn-success" 
+                                       target="_blank" 
+                                       title="Ver Reporte PDF">
+                                        <i class="bi bi-file-earmark-pdf"></i>
+                                    </a>
+                                                                    
                                 {% else %}
                                     <span class="badge bg-danger">Fallido</span>
                                 {% endif %}
@@ -77,7 +84,8 @@
                             <td>{{ registro.mensaje_respuesta|truncatechars:50 }}</td>
                             <td>
                                 <a href="{% url 'consultas:detalle_registro' registro.id %}" 
-                                   class="btn btn-sm btn-outline-info">
+                                   class="btn btn-sm btn-outline-info"
+                                   title="Ver Detalles JSON">
                                     <i class="bi bi-eye"></i>
                                 </a>
                             </td>

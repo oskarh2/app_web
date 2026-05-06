@@ -49,7 +49,83 @@ def check_service():
 
 # utils/main.py
 
-def process_person(person_data, all_flows, pdf_base_path="./reports"):
+
+def process_person(person_data, all_flows, pdf_base_path="./reports", current_user="anonimo"):
+    """
+    Procesar una persona consultando todos los flows.
+    """
+    full_name = f"{person_data.get('NAME', '')} {person_data.get('LASTNAME', '')}".strip()
+    doc_type = str(person_data.get('TIPO', '')).strip()
+    
+    print(f"\n{'='*60}")
+    print(f"Procesando: {full_name}")
+    print(f"Usuario: {current_user}")
+    print(f"{'='*60}")
+    
+    if not doc_type:
+        print("  ⚠️ No TIPO encontrado, saltando...")
+        return None
+    
+    # --- FILTRADO DE FLOWS ---
+    flows_filtered = {}
+    for site_id, flow_steps in all_flows.items():
+        if site_id.endswith(f"_{doc_type}"):
+            if isinstance(flow_steps, str):
+                try:
+                    import json
+                    flow_steps = json.loads(flow_steps)
+                except Exception as e:
+                    print(f"  ❌ Error parseando JSON para {site_id}: {e}")
+                    continue
+            flows_filtered[site_id] = flow_steps
+    
+    if not flows_filtered:
+        print(f"  ⚠️ No flows encontrados para tipo: {doc_type}")
+        return None
+
+    # --- CREACIÓN DE DIRECTORIO PROTEGIDO ---
+    # Ruta relativa para Django: 'oskarh2/NOMBRE_PERSONA_CC'
+    relative_path = os.path.join(current_user, f"{full_name.replace(' ', '_')}_{doc_type}")
+    # Ruta absoluta para el sistema: './reports/oskarh2/NOMBRE_PERSONA_CC'
+    person_dir = os.path.join(pdf_base_path, relative_path)
+    
+    if not os.path.exists(person_dir):
+        os.makedirs(person_dir, exist_ok=True)
+    
+    # --- NORMALIZACIÓN DE PASOS ---
+    for site_name, steps in flows_filtered.items():
+        if isinstance(steps, list) and len(steps) > 0 and isinstance(steps[0], list):
+            steps = steps[0]
+        flows_filtered[site_name] = steps if isinstance(steps, list) else [steps]
+
+    # --- PAYLOAD ---
+    payload = {
+        "person_data": person_data,
+        "flows": flows_filtered,
+        "headless": get_headless_mode(),
+        "pdf_base_path": person_dir
+    }
+    
+    # --- LLAMADA AL WEB SERVICE ---
+    try:
+        print(f"🚀 Enviando solicitud a {SERVICE_URL}/run_multi...")
+        response = requests.post(f"{SERVICE_URL}/run_multi", json=payload, timeout=300)
+        
+        if response.status_code == 200:
+            result = response.json()
+            # Agregamos la ruta relativa al resultado para que la vista sepa dónde está el PDF
+            result['relative_path'] = relative_path
+            return result
+        else:
+            print(f"❌ Error en Web Service: {response.status_code}")
+            return {"error": f"Status {response.status_code}", "detail": response.text}
+            
+    except Exception as e:
+        print(f"❌ Excepción al llamar al Web Service: {e}")
+        return {"error": str(e)}
+
+
+def process_person1(person_data, all_flows, pdf_base_path="./reports"):
     """
     Procesar una persona consultando todos los flows
     Llama al web service para cada sitio

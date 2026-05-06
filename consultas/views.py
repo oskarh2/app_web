@@ -12,6 +12,9 @@ from django.core.paginator import Paginator
 from .models import ValidacionArchivo, RegistroValidacion
 from .forms import ArchivoCSVForm, DatosManualForm
 from .services import WebServiceCliente
+from django.http import HttpResponse, Http404, HttpResponseForbidden
+from consultas.tasks import procesar_csv_background
+
 
 
 
@@ -40,122 +43,32 @@ def validador_index(request):
     }
     return render(request, 'consultas/validador_index.html', context)
 
+
+
 @login_required
 def cargar_archivo(request):
-    """Vista para cargar archivo CSV"""
     if request.method == 'POST':
         form = ArchivoCSVForm(request.POST, request.FILES)
         if form.is_valid():
-            archivo = request.FILES['archivo']
+            archivo_subido = request.FILES['archivo']
+            nombre_usuario_str = request.user.get_username()
             
-            # Crear registro de validación
+            # 1. Creamos el registro maestro pero SIN procesar filas aún
             validacion = ValidacionArchivo.objects.create(
                 usuario=request.user,
-                nombre_archivo=archivo.name,
-                archivo=archivo
+                nombre_archivo=archivo_subido.name,
+                archivo=archivo_subido
             )
-            
-            # Procesar archivo CSV
-            try:
-                # Leer el archivo
-                decoded_file = archivo.read().decode('utf-8')
-                io_string = io.StringIO(decoded_file)
-                reader = csv.reader(io_string)
-                
-                exitosos = 0
-                fallidos = 0
-                
-                for row_num, row in enumerate(reader, start=1):
-                    if not row or len(row) < 6:
-                        fallidos += 1
-                        continue
-                    
-                    # Extraer datos de la fila
-                    # Formato: NAME,LASTNAME,TIPO,ID,FECHA-EXP,CITY
-                    nombre = row[0].strip() if len(row) > 0 else ''
-                    apellido = row[1].strip() if len(row) > 1 else ''
-                    tipo_documento = row[2].strip() if len(row) > 2 else ''
-                    numero_documento = row[3].strip() if len(row) > 3 else ''
-                    fecha_exp = row[4].strip().strip('"') if len(row) > 4 else ''
-                    ciudad = row[5].strip() if len(row) > 5 else ''
-                    
-                    # Validar datos mínimos
-                    if not all([nombre, apellido, tipo_documento, numero_documento, ciudad]):
-                        fallidos += 1
-                        RegistroValidacion.objects.create(
-                            validacion=validacion,
-                            nombre=nombre or 'N/A',
-                            apellido=apellido or 'N/A',
-                            tipo_documento=tipo_documento or 'CC',
-                            numero_documento=numero_documento or 'N/A',
-                            ciudad=ciudad or 'N/A',
-                            estado='fallido',
-                            mensaje_respuesta='Datos incompletos en el archivo CSV'
-                        )
-                        continue
-                    
-                    # Preparar datos para web service
-                    datos_ws = {
-                        'nombre': nombre,
-                        'apellido': apellido,
-                        'tipo_documento': tipo_documento,
-                        'numero_documento': numero_documento,
-                        'ciudad': ciudad,
-                    }
-                    
-                    # Agregar fecha si existe y es válida
-                    if fecha_exp and fecha_exp != '""':
-                        try:
-                            # Intentar parsear fecha en diferentes formatos
-                            for fmt in ['%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y']:
-                                try:
-                                    fecha_obj = datetime.strptime(fecha_exp, fmt)
-                                    datos_ws['fecha_expedicion'] = fecha_obj.strftime('%Y-%m-%d')
-                                    break
-                                except ValueError:
-                                    continue
-                        except:
-                            pass
-                    
-                    # Llamar al web service
-                    resultado = WebServiceCliente.validar_persona(datos_ws)
-                    
-                    # Guardar registro
-                    RegistroValidacion.objects.create(
-                        validacion=validacion,
-                        nombre=nombre,
-                        apellido=apellido,
-                        tipo_documento=tipo_documento,
-                        numero_documento=numero_documento,
-                        ciudad=ciudad,
-                        estado='exitoso' if resultado['exitoso'] else 'fallido',
-                        mensaje_respuesta=resultado['mensaje'],
-                        respuesta_json=resultado['datos_respuesta']
-                    )
-                    
-                    if resultado['exitoso']:
-                        exitosos += 1
-                    else:
-                        fallidos += 1
-                
-                # Actualizar estadísticas de la validación
-                validacion.total_registros = exitosos + fallidos
-                validacion.registros_exitosos = exitosos
-                validacion.registros_fallidos = fallidos
-                validacion.save()
-                
-                messages.success(
-                    request,
-                    f'✅ Archivo procesado: {exitosos} exitosos, {fallidos} fallidos'
-                )
-                return redirect('consultas:detalle_validacion', validacion.id)
-                
-            except Exception as e:
-                messages.error(request, f'❌ Error al procesar el archivo: {str(e)}')
-                return redirect('consultas:cargar_archivo')
+
+            # 2. LANZAR TAREA A CELERY
+            # El .delay() envía el trabajo al worker y libera a Django
+            procesar_csv_background.delay(validacion.id, nombre_usuario_str)
+
+            messages.success(request, "✅ Archivo recibido. El proceso ha comenzado en segundo plano. Puedes seguir navegando.")
+            return redirect('consultas:detalle_validacion', validacion.id)
+    
     else:
         form = ArchivoCSVForm()
-    
     return render(request, 'consultas/cargar_archivo.html', {'form': form})
 
 @login_required
@@ -164,8 +77,10 @@ def ingresar_manual(request):
         form = DatosManualForm(request.POST)
         if form.is_valid():
             # 1. Crear el registro maestro de la validación
+            usuario_instancia = request.user 
+            nombre_usuario_str = request.user.get_username()
             validacion = ValidacionArchivo.objects.create(
-                usuario=request.user,
+                usuario=usuario_instancia,
                 nombre_archivo=f"Manual_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             )
 
@@ -183,14 +98,22 @@ def ingresar_manual(request):
             person_data = {
                 'NAME': form.cleaned_data['NAME'].upper().strip(),
                 'LASTNAME': form.cleaned_data['LASTNAME'].upper().strip(),
-                'ID': form.cleaned_data['ID'].strip(),
-                'FECHA-EXP': fecha_val.strftime('%Y-%m-%d') if fecha_val else "",
-                'TIPO': tipo_doc,
-                'CITY': form.cleaned_data.get('ciudad', 'BOGOTA').upper()
+                'ID': str(form.cleaned_data['ID']).strip(),
+                'FECHA-EXP': form.cleaned_data['FECHA_EXP'].strftime('%Y-%m-%d') if form.cleaned_data.get('FECHA_EXP') else "",
+                'TIPO': form.cleaned_data['tipo_documento'],
+                'CITY': form.cleaned_data.get('ciudad', 'BOGOTA').upper(),
+                'USER': nombre_usuario_str # <--- ENVIAMOS EL USUARIO AQUÍ
             }
+            # 2. Cargar flujos
+            tipo_doc = form.cleaned_data['tipo_documento']
+            all_flows = database.load_flows_from_db(doc_type=tipo_doc)
 
-            # 5. Ejecutar proceso (Esto envía la lista 'persons' al Web Service)
-            resultado_api = process_person(person_data, all_flows)
+            # 3. EJECUCIÓN: Aquí forzamos que process_person reciba lo que necesita para el POST
+            # Si tu process_person en main.py hace el requests.post, asegúrate de que el 
+            # payload final que se envía a http://localhost:5001/run_multi sea:
+            # {"persons": [persona_data], "headless": True}
+
+            resultado_api = process_person(person_data, all_flows, current_user=nombre_usuario_str)
 
             # 6. Guardar el registro individual (Corrección del KeyError)[cite: 5]
             estado = 'exitoso' if resultado_api else 'fallido'
@@ -213,11 +136,44 @@ def ingresar_manual(request):
             validacion.save()
 
             return redirect('consultas:detalle_validacion', validacion_id=validacion.id)
+
     else:
         form = DatosManualForm()
 
     return render(request, 'consultas/ingresar_manual_2.html', {'form': form})
 
+
+@login_required
+def descargar_reporte_protegido(request, file_path):
+    # 1. Definir la ruta base donde el Agente Web guarda los reportes
+    base_path_agente = "/Users/oskarh2/Documents/pgma/baloto/web-agent/webservice/reports/"
+    
+    # 2. Limpiar el path por si viene con prefijos duplicados
+    if file_path.startswith('reports/'):
+        file_path = file_path.replace('reports/', '', 1)
+
+    # 3. Construir la ruta absoluta al archivo PDF
+    absolute_path = os.path.join(base_path_agente, file_path)
+
+    # Depuración: para ver en consola qué ruta está intentando abrir
+    print(f"DEBUG: Buscando archivo en: {absolute_path}")
+
+    # 4. Verificación de seguridad: solo el dueño de la carpeta puede ver el archivo
+    # El file_path suele ser 'usuario@email.com/Carpeta_Persona/archivo.pdf'
+    folder_user = file_path.split('/')[0]
+    
+    if request.user.get_username() != folder_user and not request.user.is_superuser:
+        return HttpResponseForbidden("No tienes permiso para ver este reporte.")
+
+    # 5. Servir el archivo si existe
+    if os.path.exists(absolute_path):
+        with open(absolute_path, 'rb') as fh:
+            response = HttpResponse(fh.read(), content_type="application/pdf")
+            response['Content-Disposition'] = f'inline; filename={os.path.basename(absolute_path)}'
+            return response
+    
+    # Si llegamos aquí, el archivo físicamente no está en el disco
+    raise Http404(f"Archivo no encontrado en el servidor: {absolute_path}")
 
 @login_required
 def lista_validaciones(request):
@@ -237,6 +193,22 @@ def detalle_validacion(request, validacion_id):
     """Detalle de una validación específica"""
     validacion = get_object_or_404(ValidacionArchivo, id=validacion_id, usuario=request.user)
     registros = validacion.registros.all()
+    # Preparamos los registros con su ruta de PDF
+    nombre_usuario = request.user.get_username()
+    for registro in registros:
+
+        # Formato: usuario/Nombre_Apellido_TIPO
+        nom = registro.nombre.strip().replace(' ', '_')
+        ape = registro.apellido.strip().replace(' ', '_')
+        tipo = registro.tipo_documento.strip()
+        # Formato: Nombre_Apellido_TIPO
+        folder_name = f"{nom}_{ape}_{tipo}"
+        # Construimos el nombre de la carpeta (debe ser igual a lo que hace main.py)
+        file_name = f"{nom}_{ape}_results_only.pdf"
+        
+        # Ahora sí usamos nombre_usuario porque el WS ya lo habrá creado[cite: 6]
+        registro.relative_pdf_path = os.path.join(nombre_usuario, folder_name, file_name)
+    
     paginator = Paginator(registros, 20)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
