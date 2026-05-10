@@ -5,7 +5,8 @@ import os
 from datetime import datetime
 
 # Configuración global
-HEADLESS_MODE = False
+#HEADLESS_MODE = False
+HEADLESS_MODE = True
 
 def set_headless_mode(value):
     """Set headless mode globally"""

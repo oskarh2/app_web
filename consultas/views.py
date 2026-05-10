@@ -14,6 +14,7 @@ from .forms import ArchivoCSVForm, DatosManualForm
 from .services import WebServiceCliente
 from django.http import HttpResponse, Http404, HttpResponseForbidden
 from consultas.tasks import procesar_csv_background
+import requests
 
 
 
@@ -84,17 +85,29 @@ def ingresar_manual(request):
                 nombre_archivo=f"Manual_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             )
 
-            # 2. Configurar entorno del scraping[cite: 5]
+            # 2. Configurar entorno del scraping
             config_scraping.set_headless_mode(True)
             set_service_url("http://localhost:5001")
 
-            # 3. Cargar flujos de la base de datos
-            tipo_doc = form.cleaned_data['tipo_documento']
-            all_flows = database.load_flows_from_db(doc_type=tipo_doc)
+            # 3. Verificar que el web service esté disponible ANTES de procesar
+            import requests
+            service_url = "http://localhost:5001"
+            service_available = False
+            try:
+                response = requests.get(f"{service_url}/health", timeout=5)
+                if response.status_code == 200:
+                    service_available = True
+                    print("✅ Web Service disponible")
+                else:
+                    print(f"⚠️ Web Service respondió con status {response.status_code}")
+            except requests.exceptions.ConnectionError:
+                print("❌ Web Service no disponible - Conexión fallida")
+                service_available = False
+            except Exception as e:
+                print(f"❌ Error verificando Web Service: {e}")
+                service_available = False
 
-            # 4. Preparar datos con llaves exactas para el Web Service[cite: 2]
-            # Usamos guion medio en FECHA-EXP porque así lo requiere el agente
-            fecha_val = form.cleaned_data.get('FECHA_EXP')
+            # 4. Preparar datos
             person_data = {
                 'NAME': form.cleaned_data['NAME'].upper().strip(),
                 'LASTNAME': form.cleaned_data['LASTNAME'].upper().strip(),
@@ -102,38 +115,80 @@ def ingresar_manual(request):
                 'FECHA-EXP': form.cleaned_data['FECHA_EXP'].strftime('%Y-%m-%d') if form.cleaned_data.get('FECHA_EXP') else "",
                 'TIPO': form.cleaned_data['tipo_documento'],
                 'CITY': form.cleaned_data.get('ciudad', 'BOGOTA').upper(),
-                'USER': nombre_usuario_str # <--- ENVIAMOS EL USUARIO AQUÍ
+                'USER': nombre_usuario_str
             }
-            # 2. Cargar flujos
+
+            # 5. Cargar flujos de la base de datos (solo una vez)
             tipo_doc = form.cleaned_data['tipo_documento']
             all_flows = database.load_flows_from_db(doc_type=tipo_doc)
 
-            # 3. EJECUCIÓN: Aquí forzamos que process_person reciba lo que necesita para el POST
-            # Si tu process_person en main.py hace el requests.post, asegúrate de que el 
-            # payload final que se envía a http://localhost:5001/run_multi sea:
-            # {"persons": [persona_data], "headless": True}
+            # 6. Variables para el resultado
+            resultado_api = None
+            error_mensaje = None
+            estado = 'fallido'
 
-            resultado_api = process_person(person_data, all_flows, current_user=nombre_usuario_str)
+            # 7. SOLO procesar si el web service está disponible
+            if service_available:
+                try:
+                    print(f"🚀 Enviando solicitud a {service_url}/run_multi...")
+                    resultado_api = process_person(person_data, all_flows, current_user=nombre_usuario_str)
+                    
+                    # Verificar si el resultado contiene error
+                    if resultado_api and isinstance(resultado_api, dict):
+                        if resultado_api.get('success') == False or resultado_api.get('error'):
+                            error_mensaje = resultado_api.get('error', 'Error desconocido en el web service')
+                            resultado_api = None
+                            estado = 'fallido'
+                            print(f"❌ Web Service devolvió error: {error_mensaje}")
+                        else:
+                            estado = 'exitoso'
+                            print("✅ Consulta procesada exitosamente")
+                    else:
+                        error_mensaje = "No se recibió respuesta válida del web service"
+                        estado = 'fallido'
+                        print(f"❌ {error_mensaje}")
+                        
+                except requests.exceptions.Timeout:
+                    error_mensaje = "Timeout - El web service tardó demasiado en responder"
+                    estado = 'fallido'
+                    print(f"❌ {error_mensaje}")
+                except requests.exceptions.ConnectionError:
+                    error_mensaje = "No se pudo conectar al web service - Verifica que esté corriendo"
+                    estado = 'fallido'
+                    print(f"❌ {error_mensaje}")
+                except Exception as e:
+                    error_mensaje = f"Error inesperado: {str(e)}"
+                    estado = 'fallido'
+                    print(f"❌ {error_mensaje}")
+            else:
+                error_mensaje = "Web Service no disponible. Por favor inicia el servicio primero: python web_service.py"
+                estado = 'fallido'
+                print(f"❌ {error_mensaje}")
 
-            # 6. Guardar el registro individual (Corrección del KeyError)[cite: 5]
-            estado = 'exitoso' if resultado_api else 'fallido'
+            # 8. Guardar el registro individual
             RegistroValidacion.objects.create(
                 validacion=validacion,
                 nombre=person_data['NAME'],
                 apellido=person_data['LASTNAME'],
                 tipo_documento=person_data['TIPO'],
-                numero_documento=person_data['ID'], # Usamos la llave 'ID' del diccionario
+                numero_documento=person_data['ID'],
                 ciudad=person_data['CITY'],
                 estado=estado,
-                mensaje_respuesta="Consulta procesada" if resultado_api else "Error en Web Service",
-                respuesta_json=resultado_api
+                mensaje_respuesta="Consulta procesada" if estado == 'exitoso' else error_mensaje,
+                respuesta_json=resultado_api if resultado_api else {'error': error_mensaje}
             )
 
-            # Actualizar contadores generales
+            # 9. Actualizar contadores generales
             validacion.total_registros = 1
-            validacion.registros_exitosos = 1 if resultado_api else 0
-            validacion.registros_fallidos = 0 if resultado_api else 1
+            validacion.registros_exitosos = 1 if estado == 'exitoso' else 0
+            validacion.registros_fallidos = 0 if estado == 'exitoso' else 1
             validacion.save()
+
+            # 10. Mostrar mensaje al usuario
+            if estado == 'exitoso':
+                messages.success(request, "✅ Consulta procesada exitosamente. Los reportes están disponibles.")
+            else:
+                messages.error(request, f"❌ Error al procesar la consulta: {error_mensaje}")
 
             return redirect('consultas:detalle_validacion', validacion_id=validacion.id)
 

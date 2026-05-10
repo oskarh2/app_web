@@ -141,6 +141,25 @@ def process_person1(person_data, all_flows, pdf_base_path="./reports"):
     if not doc_type:
         print("  ⚠️ No TIPO encontrado, saltando...")
         return None
+    # --- VERIFICAR WEB SERVICE ANTES DE PROCESAR ---
+    import requests
+    service_url = get_service_url()
+    service_available = False
+    
+    try:
+        response = requests.get(f"{service_url}/health", timeout=5)
+        if response.status_code == 200:
+            service_available = True
+            print("✅ Web Service disponible")
+        else:
+            print(f"⚠️ Web Service respondió con status {response.status_code}")
+    except Exception as e:
+        print(f"❌ Web Service no disponible: {e}")
+        service_available = False
+    
+    if not service_available:
+        print("❌ No se puede continuar. Web Service no está corriendo.")
+        return {"success": False, "error": "Web Service no disponible. Inicia el servicio con: python web_service.py"}
     
     # Obtener flows filtrados por tipo de documento
     flows_filtered = {}
@@ -262,6 +281,8 @@ def process_individual_reports(db_config=None, headless=False):
     """
     Función principal para procesar todos los individuos
     """
+    # Tiempo total de inicio
+    total_start_time = time.time()
     # Verificar servicio web
     if not check_service():
         print("\n❌ No se puede continuar sin el Web Service")
@@ -333,6 +354,7 @@ def process_individual_reports(db_config=None, headless=False):
             })
     
     # Resumen final
+
     print(f"\n{'='*60}")
     print("RESUMEN FINAL")
     print(f"{'='*60}")
@@ -341,6 +363,18 @@ def process_individual_reports(db_config=None, headless=False):
     print(f"Exitosos: {success_count}")
     print(f"Fallidos: {len(results_summary) - success_count}")
     print(f"\n📁 Reportes guardados en: {base_reports_dir}")
+    # Al final, calcular y mostrar resumen de tiempos
+    total_end_time = time.time()
+    total_elapsed = total_end_time - total_start_time
+    print(f"\n{'='*60}")
+    print(f"📊 RESUMEN DE TIEMPOS PARA {current_person.get('NAME')} {current_person.get('LASTNAME')}")
+    print(f"{'='*60}")
+    for site, elapsed in page_times.items():
+        print(f"  ⏱️ {site}: {elapsed} segundos")
+    print(f"{'-'*60}")
+    print(f"  ⏱️ TIEMPO TOTAL: {total_elapsed:.2f} segundos")
+    print(f"{'='*60}\n")
+    
     
     return results_summary
 
